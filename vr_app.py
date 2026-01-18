@@ -1,5 +1,5 @@
 # vr_app.py
-# 사이드바 제거 -> 메인 화면 상단 배치 버전
+# V6.1: 메인 화면 설정창 + 상세 거래장부 복구 버전
 
 import streamlit as st
 import datetime
@@ -7,19 +7,16 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 
-# --- 페이지 설정 (레이아웃 조절) ---
-st.set_page_config(page_title="VR 리밸런싱 시뮬레이터", page_icon="📈", layout="wide")
+# --- 페이지 설정 ---
+st.set_page_config(page_title=" VR 밸류리밸런싱 백테스팅 겸 시뮬레이션 V6", page_icon="📈", layout="wide")
 
-st.header("📊 VR 시뮬레이터 V6")
+st.header("📊 VR 밸류리밸런싱 백테스팅 겸 시뮬레이션 V6")
 st.markdown("옵션을 설정하고 **[시뮬레이션 시작]** 버튼을 눌러주세요. 👇")
 
 # ==============================================================================
-# 1. 설정 패널 (사이드바 대신 메인 화면에 배치)
+# 1. 설정 패널 (메인 화면 상단 배치)
 # ==============================================================================
-# expanded=True 옵션으로 처음부터 쫙 펼쳐서 보여줍니다.
 with st.expander("⚙️ 종목 및 자금 설정 (클릭해서 접기/펴기)", expanded=True):
-    
-    # 보기 좋게 3단으로 나눕니다.
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -37,11 +34,9 @@ with st.expander("⚙️ 종목 및 자금 설정 (클릭해서 접기/펴기)",
         start_money = st.number_input("초기 원금", value=10000, step=1000)
         monthly_add = st.number_input("월 적립금", value=250, step=50)
 
-    # 리밸런싱 주기는 아래에 깔끔하게
     st.markdown("---")
     rebalance_period = st.radio("🔄 리밸런싱 주기 선택", [14, 30], index=0, horizontal=True, format_func=lambda x: f"{x}일 간격")
 
-    # 실행 버튼을 설정창 안에 넣어서 바로 누르게 유도
     run_btn = st.button("🚀 시뮬레이션 시작 (Click)", type="primary", use_container_width=True)
 
 # ==============================================================================
@@ -68,7 +63,7 @@ with tab1:
                     if len(df) == 0:
                         st.error("해당 기간의 데이터가 부족합니다.")
                     else:
-                        # --- 여기서부터 시뮬레이션 로직 (기존과 동일) ---
+                        # --- 시뮬레이션 로직 ---
                         log_data = []
                         cash_pool = float(start_money)
                         total_invested = float(start_money)
@@ -79,7 +74,6 @@ with tab1:
                         cash_pool -= (current_qty * first_price)
                         last_trade_day = df.index[0]
 
-                        # 초기 데이터
                         log_data.append({
                             "날짜": df.index[0], "종가": first_price, "목표금액": target_value,
                             "내자산": current_qty * first_price, "수량": current_qty, "예수금": cash_pool, "행동": "시작"
@@ -140,17 +134,33 @@ with tab1:
                         m4.metric("보유 수량", f"{current_qty}주")
 
                         # 차트 그리기
+                        st.subheader(f"📈 {ticker_input} 자산 흐름 (Band View)")
                         fig = go.Figure()
-                        # 밴드 (회색 영역)
                         fig.add_trace(go.Scatter(x=res_df.index, y=res_df['상단밴드'], mode='lines', line=dict(width=0), showlegend=False))
                         fig.add_trace(go.Scatter(x=res_df.index, y=res_df['하단밴드'], mode='lines', fill='tonexty', fillcolor='rgba(200,200,200,0.3)', line=dict(width=0), name='밴드 영역'))
-                        # 목표선
                         fig.add_trace(go.Scatter(x=res_df.index, y=res_df['목표금액'], mode='lines', line=dict(color='red', dash='dash'), name='목표선'))
-                        # 내 자산
                         fig.add_trace(go.Scatter(x=res_df.index, y=res_df['내자산'], mode='lines', line=dict(color='blue', width=2), name='내 자산'))
 
                         fig.update_layout(height=500, margin=dict(l=20, r=20, t=40, b=20), hovermode="x unified", legend=dict(orientation="h", y=1.1))
                         st.plotly_chart(fig, use_container_width=True)
+
+                        # 🔥 [복구 완료] 상세 거래 장부 (Expander) 🔥
+                        with st.expander("🔎 상세 거래 내역 보기 (Click)", expanded=False):
+                            st.markdown("##### 🧾 일별 자산 및 매매 기록")
+                            # 보기 좋게 포맷팅
+                            display_df = res_df.copy()
+                            display_df.index = display_df.index.strftime('%Y-%m-%d')
+                            st.dataframe(
+                                display_df.style.format({
+                                    "종가": "${:,.2f}",
+                                    "목표금액": "${:,.0f}",
+                                    "내자산": "${:,.0f}",
+                                    "예수금": "${:,.0f}",
+                                    "상단밴드": "${:,.0f}",
+                                    "하단밴드": "${:,.0f}"
+                                }),
+                                use_container_width=True
+                            )
 
             except Exception as e:
                 st.error(f"오류 발생: {e}")
@@ -183,4 +193,3 @@ with tab2:
                 st.error(f"🚀 **{req_qty}주 매수** 필요")
             else:
                 st.warning(f"📉 **{abs(req_qty)}주 매도** 필요")
-
